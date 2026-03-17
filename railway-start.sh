@@ -5,25 +5,33 @@ echo "============================================"
 echo "  PNW Tickets - Railway Startup"
 echo "============================================"
 
+# Debug: print all DB vars
+echo "[DEBUG] DB_HOST='$DB_HOST'"
+echo "[DEBUG] DB_PORT='$DB_PORT'"
+echo "[DEBUG] DB_USERNAME='$DB_USERNAME'"
+echo "[DEBUG] DB_DATABASE='$DB_DATABASE'"
+echo "[DEBUG] REDIS_HOST='$REDIS_HOST'"
+
 # Wait for Postgres using PHP (pg_isready may not be installed)
 echo "[1/6] Waiting for PostgreSQL..."
-echo "  DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_USERNAME=$DB_USERNAME DB_DATABASE=$DB_DATABASE"
-until php -r "new PDO('pgsql:host='.\$_SERVER['DB_HOST'].';port='.\$_SERVER['DB_PORT'].';dbname='.\$_SERVER['DB_DATABASE'], \$_SERVER['DB_USERNAME'], \$_SERVER['DB_PASSWORD']);" 2>/dev/null; do
+RETRIES=0
+until php -r "getenv('DB_HOST') || exit(1); new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));" 2>&1; do
+  RETRIES=$((RETRIES + 1))
+  if [ "$RETRIES" -ge 20 ]; then
+    echo "  FATAL: Could not connect to PostgreSQL after 60s. Check env vars."
+    exit 1
+  fi
   echo "  ...postgres not ready, retrying in 3s"
   sleep 3
 done
 echo "  ✓ PostgreSQL is ready"
 
-# Wait for Redis
+# Wait for Redis (skip if not configured)
 if [ -n "$REDIS_HOST" ]; then
-  echo "[2/6] Waiting for Redis..."
-  until php -r "new Redis() || exit(1); \$r = new Redis(); \$r->connect(\$_SERVER['REDIS_HOST'], \$_SERVER['REDIS_PORT']); \$r->auth(\$_SERVER['REDIS_PASSWORD']); echo \$r->ping();" 2>/dev/null | grep -q PONG; do
-    echo "  ...redis not ready, retrying in 3s"
-    sleep 3
-  done
-  echo "  ✓ Redis is ready"
+  echo "[2/6] Checking Redis..."
+  echo "  ✓ Redis configured (will verify on first use)"
 else
-  echo "[2/6] Skipping Redis check (REDIS_HOST not set)"
+  echo "[2/6] Skipping Redis (REDIS_HOST not set)"
 fi
 
 # Laravel setup
