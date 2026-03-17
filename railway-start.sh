@@ -5,20 +5,21 @@ echo "============================================"
 echo "  PNW Tickets - Railway Startup"
 echo "============================================"
 
-# Wait for Postgres
+# Wait for Postgres using PHP (pg_isready may not be installed)
 echo "[1/6] Waiting for PostgreSQL..."
-until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" 2>/dev/null; do
-  echo "  ...postgres not ready, retrying in 2s"
-  sleep 2
+echo "  DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_USERNAME=$DB_USERNAME DB_DATABASE=$DB_DATABASE"
+until php -r "new PDO('pgsql:host='.\$_SERVER['DB_HOST'].';port='.\$_SERVER['DB_PORT'].';dbname='.\$_SERVER['DB_DATABASE'], \$_SERVER['DB_USERNAME'], \$_SERVER['DB_PASSWORD']);" 2>/dev/null; do
+  echo "  ...postgres not ready, retrying in 3s"
+  sleep 3
 done
 echo "  ✓ PostgreSQL is ready"
 
 # Wait for Redis
 if [ -n "$REDIS_HOST" ]; then
   echo "[2/6] Waiting for Redis..."
-  until redis-cli -h "$REDIS_HOST" -p "${REDIS_PORT:-6379}" ping 2>/dev/null | grep -q PONG; do
-    echo "  ...redis not ready, retrying in 2s"
-    sleep 2
+  until php -r "new Redis() || exit(1); \$r = new Redis(); \$r->connect(\$_SERVER['REDIS_HOST'], \$_SERVER['REDIS_PORT']); \$r->auth(\$_SERVER['REDIS_PASSWORD']); echo \$r->ping();" 2>/dev/null | grep -q PONG; do
+    echo "  ...redis not ready, retrying in 3s"
+    sleep 3
   done
   echo "  ✓ Redis is ready"
 else
