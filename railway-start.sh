@@ -5,20 +5,34 @@ echo "============================================"
 echo "  PNW Tickets - Railway Startup"
 echo "============================================"
 
-# Debug: print all DB vars
-echo "[DEBUG] DB_HOST='$DB_HOST'"
-echo "[DEBUG] DB_PORT='$DB_PORT'"
-echo "[DEBUG] DB_USERNAME='$DB_USERNAME'"
-echo "[DEBUG] DB_DATABASE='$DB_DATABASE'"
-echo "[DEBUG] REDIS_HOST='$REDIS_HOST'"
+# Parse DATABASE_URL if individual DB vars are not set
+if [ -z "$DB_HOST" ] && [ -n "$DATABASE_URL" ]; then
+  echo "[0/6] Parsing DATABASE_URL..."
+  export DB_CONNECTION=pgsql
+  export DB_USERNAME=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+  export DB_PASSWORD=$(echo "$DATABASE_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+  export DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+  export DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+  export DB_DATABASE=$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
+  echo "  DB_HOST=$DB_HOST DB_PORT=$DB_PORT DB_DATABASE=$DB_DATABASE DB_USERNAME=$DB_USERNAME"
+fi
 
-# Wait for Postgres using PHP (pg_isready may not be installed)
+# Parse REDIS_URL if individual Redis vars are not set
+if [ -z "$REDIS_HOST" ] && [ -n "$REDIS_URL" ]; then
+  echo "[0/6] Parsing REDIS_URL..."
+  export REDIS_HOST=$(echo "$REDIS_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+  export REDIS_PORT=$(echo "$REDIS_URL" | sed -n 's|.*:\([0-9]*\)$|\1|p')
+  export REDIS_PASSWORD=$(echo "$REDIS_URL" | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+  echo "  REDIS_HOST=$REDIS_HOST REDIS_PORT=$REDIS_PORT"
+fi
+
+# Wait for Postgres
 echo "[1/6] Waiting for PostgreSQL..."
 RETRIES=0
-until php -r "getenv('DB_HOST') || exit(1); new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));" 2>&1; do
+until php -r "new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));" 2>&1; do
   RETRIES=$((RETRIES + 1))
   if [ "$RETRIES" -ge 20 ]; then
-    echo "  FATAL: Could not connect to PostgreSQL after 60s. Check env vars."
+    echo "  FATAL: Could not connect to PostgreSQL after 60s."
     exit 1
   fi
   echo "  ...postgres not ready, retrying in 3s"
@@ -26,12 +40,11 @@ until php -r "getenv('DB_HOST') || exit(1); new PDO('pgsql:host='.getenv('DB_HOS
 done
 echo "  ✓ PostgreSQL is ready"
 
-# Wait for Redis (skip if not configured)
+# Check Redis
 if [ -n "$REDIS_HOST" ]; then
-  echo "[2/6] Checking Redis..."
-  echo "  ✓ Redis configured (will verify on first use)"
+  echo "[2/6] Redis configured at $REDIS_HOST:$REDIS_PORT"
 else
-  echo "[2/6] Skipping Redis (REDIS_HOST not set)"
+  echo "[2/6] Skipping Redis (not configured)"
 fi
 
 # Laravel setup
