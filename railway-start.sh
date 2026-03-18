@@ -43,7 +43,12 @@ echo "  ✓ PostgreSQL is ready"
 # Set Nginx to listen on Railway's dynamic PORT
 if [ -n "$PORT" ]; then
   export NGINX_LISTEN_PORT="$PORT"
-  echo "[3/4] Nginx will listen on port $PORT"
+  export SSL_MODE=off
+  # Also patch Nginx configs directly in case the env var isn't picked up
+  find /etc/nginx -name '*.conf' -exec sed -i "s/listen 80;/listen $PORT;/g" {} \; 2>/dev/null || true
+  find /etc/nginx -name '*.conf' -exec sed -i "s/listen 8080;/listen $PORT;/g" {} \; 2>/dev/null || true
+  find /etc/nginx -name '*.conf' -exec sed -i "s/listen 443/listen $PORT/g" {} \; 2>/dev/null || true
+  echo "[3/4] Nginx configured for port $PORT"
 fi
 
 # Hand off to the base image startup script
