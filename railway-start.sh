@@ -40,6 +40,12 @@ until php -r "new PDO('pgsql:host='.getenv('DB_HOST').';port='.getenv('DB_PORT')
 done
 echo "  ✓ PostgreSQL is ready"
 
+# Set Nginx to listen on Railway's dynamic PORT
+if [ -n "$PORT" ]; then
+  export NGINX_LISTEN_PORT="$PORT"
+  echo "[3/4] Nginx will listen on port $PORT"
+fi
+
 # Hand off to the base image startup script
-echo "[3/3] Starting application via base image startup..."
+echo "[4/4] Starting application via base image startup..."
 exec /startup.sh
