@@ -1,0 +1,103 @@
+I now have a thorough understanding of the stack. Here's my implementation plan for Phase 1:
+
+---
+
+## Phase 1 Implementation Plan
+
+### What we're building
+User registers → auto-creates org → sets up 2FA → logs in → sees empty dashboard. All mutations audit-logged.
+
+### File Structure
+```
+src/
+  app/
+    (auth)/
+      login/page.tsx
+      register/page.tsx
+      forgot-password/page.tsx
+      reset-password/page.tsx
+      setup-2fa/page.tsx
+      verify-2fa/page.tsx
+      layout.tsx
+    (dashboard)/
+      layout.tsx          ← sidebar + topbar shell
+      page.tsx             ← empty dashboard home
+    api/
+      trpc/[...trpc]/route.ts
+      auth/[...nextauth]/route.ts
+    layout.tsx
+    page.tsx              ← redirect to /login or /dashboard
+  server/
+    db/
+      index.ts            ← drizzle + neon connection
+      schema/
+        index.ts          ← re-exports all tables
+        users.ts          ← users, accounts, sessions, verification_tokens
+        organizations.ts  ← orgs, org_groups, org_members
+        events.ts         ← events, event_settings, recurring_events
+        venues.ts         ← venues, seat_maps, sections, rows, seats
+        tickets.ts        ← ticket_types, price_tiers, ticket_holds
+        orders.ts         ← orders, order_items, payments, refunds
+        attendees.ts      ← attendees, check_ins, check_in_lists
+        promoters.ts      ← artists, promoter_deals, comp_allocations
+        marketing.ts      ← email campaigns, lists, subscribers, segments
+        audit.ts          ← audit_logs
+        ... (all 50+ tables)
+    auth/
+      index.ts            ← Auth.js v5 config + Drizzle adapter
+    trpc/
+      init.ts             ← initTRPC, context type
+      context.ts          ← createContext (session + db)
+      middleware.ts        ← auth, org-scoping, audit-log middleware
+      routers/
+        auth.ts           ← register, login, 2FA, forgot/reset password
+        index.ts          ← appRouter (merged)
+    email/
+      index.ts            ← Resend client
+      templates/
+        welcome.tsx       ← React Email welcome template
+  lib/
+    env.ts                ← @t3-oss/env-nextjs validation
+    trpc.ts               ← tRPC React client hooks
+  components/
+    ui/                   ← shadcn components (button, input, card, etc.)
+    dashboard/
+      sidebar.tsx
+      topbar.tsx
+```
+
+### Implementation Order (10 steps)
+
+1. **Environment & config** — `lib/env.ts`, `.env.local.example`, install `server-only`, `drizzle-kit`, shadcn/ui
+2. **Database schema** — All 50+ tables in `server/db/schema/`, drizzle connection in `server/db/index.ts`
+3. **Initial migration** — Run `drizzle-kit generate` + `drizzle-kit push` config
+4. **Auth.js v5** — Config with credentials provider + Drizzle adapter, route handler, session helpers
+5. **tRPC foundation** — init, context, auth/org-scoping/audit middleware, route handler
+6. **Auth router** — register (with org auto-creation), login, forgot-password, reset-password, 2FA setup/verify
+7. **Resend + welcome email** — Client setup, React Email template, send on registration
+8. **Auth pages** — Login, register, forgot-password, reset-password, 2FA setup/verify (Client Components with `useActionState`)
+9. **Dashboard shell** — Layout with sidebar + topbar, protected by auth middleware, empty home page
+10. **Audit log middleware** — Auto-record all tRPC mutations with user/org context
+
+### Key Architecture Decisions
+
+- **Next.js 16 patterns**: `params`/`searchParams` are Promises (must await), `cookies()`/`headers()` are async, Server Components by default
+- **Auth**: Auth.js v5 with JWT strategy (not database sessions) for mobile-readiness. Credentials provider for email/password.
+- **tRPC route handler**: Single catch-all at `/api/trpc/[...trpc]/route.ts`
+- **Client components**: Only auth forms and interactive dashboard parts get `'use client'`
+- **Schema**: All tables defined upfront in Phase 1 even if unused until later phases — prevents migration headaches
+- **pgTable extras**: Use array syntax (drizzle-orm 0.45 breaking change)
+
+### Dependencies to Install
+- `shadcn` (UI components — need button, input, card, label, separator, dropdown-menu, avatar, sheet, toast)
+- `drizzle-kit` (dev — migrations)
+- `server-only` (prevent server code leaking to client)
+- `jose` (JWT encryption for sessions, if needed beyond Auth.js)
+
+### Questions for You
+
+1. **Database**: Do you already have a Neon/Railway Postgres instance, or should I set up the schema to work with a local Postgres for now?
+2. **Schema scope**: The plan says all 50+ tables in Phase 1. Want me to do that, or just the ~10 tables needed for Phase 1's deliverable and add the rest as we go?
+3. **shadcn/ui**: I'll need to run `npx shadcn init` and install components. OK to proceed with that?
+
+Want me to proceed with this plan, or adjust anything?
