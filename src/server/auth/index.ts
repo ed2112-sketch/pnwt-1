@@ -1,8 +1,15 @@
+import { cache } from "react";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { PostgresDrizzleAdapter } from "@auth/drizzle-adapter/pg";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/server/db";
-import { users, accounts, sessions, verificationTokens } from "@/server/db/schema";
+import {
+  users,
+  accounts,
+  sessions,
+  verificationTokens,
+  organizationMembers,
+} from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -12,8 +19,8 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PostgresDrizzleAdapter(db, {
+const { handlers, auth: uncachedAuth, signIn, signOut } = NextAuth({
+  adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,
@@ -57,17 +64,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
       }
+
+      // Load org membership on sign-in or when explicitly refreshed
+      if (user || trigger === "update") {
+        const membership = await db.query.organizationMembers.findFirst({
+          where: eq(organizationMembers.userId, token.id as string),
+          with: { organization: true },
+        });
+
+        if (membership) {
+          token.orgId = membership.organizationId;
+          token.orgRole = membership.role;
+          token.orgName = membership.organization.name;
+          token.orgSlug = membership.organization.slug;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (token.id) {
         session.user.id = token.id as string;
       }
+      if (token.orgId) {
+        session.user.orgId = token.orgId as string;
+        session.user.orgRole = token.orgRole as string;
+        session.user.orgName = token.orgName as string;
+        session.user.orgSlug = token.orgSlug as string;
+      }
       return session;
     },
   },
 });
+
+// Deduplicate auth() calls within a single React server request
+const auth = cache(uncachedAuth);
+
+export { handlers, auth, signIn, signOut };

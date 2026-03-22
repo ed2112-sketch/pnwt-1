@@ -39,3 +39,9 @@ pnpm-debug.log*
 
 # vercel
 .vercel
+
+# migration scripts (contain credentials)
+scripts/migrate-*.mjs
+
+# output logs
+output.log

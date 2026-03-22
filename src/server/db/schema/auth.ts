@@ -18,6 +18,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
   twoFactorSecret: text("two_factor_secret"),
+  totalSpent: integer("total_spent").default(0).notNull(),
+  totalOrders: integer("total_orders").default(0).notNull(),
+  lastOrderAt: timestamp("last_order_at", { mode: "date" }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })
     .defaultNow()

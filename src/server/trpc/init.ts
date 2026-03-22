@@ -35,3 +35,22 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
     },
   });
 });
+
+export const orgProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const { orgId, orgRole } = ctx.user as { orgId?: string; orgRole?: string };
+
+  if (!orgId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "No organization membership found.",
+    });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      orgId,
+      orgRole: orgRole as string,
+    },
+  });
+});

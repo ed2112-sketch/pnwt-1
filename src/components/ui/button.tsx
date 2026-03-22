@@ -1,5 +1,6 @@
 "use client"
 
+import { cloneElement, type ReactElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -46,14 +47,31 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  children,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+
+  // When render is provided (e.g. a Link), bypass ButtonPrimitive entirely
+  // to avoid SSR/client hydration mismatches with type/role attributes.
+  if (render) {
+    return cloneElement(render as ReactElement<Record<string, unknown>>, {
+      "data-slot": "button",
+      className: classes,
+      ...props,
+      children,
+    })
+  }
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={classes}
       {...props}
-    />
+    >
+      {children}
+    </ButtonPrimitive>
   )
 }
 
